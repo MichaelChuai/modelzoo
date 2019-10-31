@@ -1,0 +1,6 @@
+classes_per_set: way
+samples_per_class: shot
+support_x: [batch, classes_per_set * samples_per_class, ...]
+support_y: [batch, classes_per_set * samples_per_class]
+target_x: [batch, samples_per_class, ...]
+target_y: [batch, samples_per_class]
