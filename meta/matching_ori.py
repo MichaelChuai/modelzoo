@@ -57,7 +57,7 @@ def attention(inputs, support_x, support_y, num_classes, classification=False):
         support_y_pre = F.one_hot(support_y, num_classes)
     else:
         support_y_pre = support_y.unsqueeze(dim=-1)
-    output = torch.bmm(similarities, support_y_pre.type(torch.float32)).squeeze(dim=1)
+    output = torch.bmm(similarities, support_y_pre.type(torch.float32))
     
     return similarities, output
 
@@ -65,10 +65,14 @@ enclst = []
 for i in range(ax.size(1)):
     enclst.append(G(ax[:,i,:,:, :]).unsqueeze(dim=1))
 
-i = 0
-enclst.append(G(tx[:, i, :, :, :]).unsqueeze(dim=1))
-
-x1 = torch.cat(enclst, dim=1)
-x2, (hn, cn) = lstm(x1)
-
-similarities, output = attention(x2[:,-1,:], x2[:,:-1, :], ay, 10, True)
+# i = 0
+slst = []
+olst = []
+for i in range(2):
+    enclst.append(G(tx[:, i, :, :, :]).unsqueeze(dim=1))
+    x1 = torch.cat(enclst, dim=1)
+    x2, (hn, cn) = lstm(x1)
+    similarities, output = attention(x2[:,-1,:], x2[:,:-1, :], ay, 10, True)
+    slst.append(similarities)
+    olst.append(output)
+    enclst.pop()
