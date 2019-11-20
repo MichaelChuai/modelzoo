@@ -79,7 +79,7 @@ def write_data(root, outfile_name):
     dt = dict.fromkeys(list(range(n)))
     for i in range(n):
         xs = [cs[i]]
-        ys = [np.ones(len(cs[i]), dtype=np.uint16) * i]
+        ys = [np.ones(len(cs[i]), dtype=np.int16) * i]
         dt[i] = [xs, ys]
     dl.write_classified_h5_from_arrays(h5_path, dt, is_appending=False)
 
