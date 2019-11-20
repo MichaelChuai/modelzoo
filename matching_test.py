@@ -4,11 +4,21 @@ from meta.matching import *
 import dlutil as dl
 
 
-
-root = '/data/examples/omniglot/omniglot_bg.h5'
-batch_size = 32
 shots = 2
 ways = 5
+
+G = Embedding(1, 10)
+context_embedding_network = MatchingNetwork.build_context_embedding_network(10, 64, 1)
+network = MatchingNetwork(G, context_embedding_network, ways).cuda(0)
+
+optimizer = torch.optim.Adam(network.parameters())
+
+ckpt = dl.Checkpoint('results/matching/omniglot', max_to_keep=10, device=0, save_best_only=True, saving_metric='test_acc')
+acc = dl.MetricAccuracy(name='acc', device=0)
+
+
+root = '/data/examples/omniglot'
+batch_size = 32
 def trans(bxs, bys):
     bx = bxs[0]
     by = bys[0]
@@ -25,16 +35,18 @@ def trans(bxs, bys):
     bxs = [inp_x, sup_x, sup_y]
     bys = inp_y
     return (bxs, bys)
+train_file = f'{root}/omniglot_bg.h5'
+dstr = dl.DataReader(train_file, num_workers=5, transform_func=trans)
+gntr = dstr.few_shot_reader(batch_size, shots+1, ways)
 
-dstr = dl.DataReader(root, num_workers=5, transform_func=trans)
+test_file = f'{root}/omniglot_eval.h5'
+dste = dl.DataReader(test_file, num_workers=5, transform_func=trans)
+gnte = dste.few_shot_seq_reader(batch_size * 2, shots=shots+1, selected_classes=[0,1,2,3,4])
+listeners = [dl.Listener('test', gnte, [acc])]
 
-tr_reader = dstr.few_shot_reader(batch_size, shots+1, ways)
+def loss_func(y_, y):
+    return nn.CrossEntropyLoss()(y_.transpose(-2, -1), y)
 
-G = Embedding(1, 10)
-context_embedding_network = MatchingNetwork.build_context_embedding_network(10, 64, 1)
-network = MatchingNetwork(G, context_embedding_network, ways)
+dlmodel = dl.DlModel(network, ckpt)
+dlmodel.train(gntr, loss_func, optimizer, total_steps=200000, ckpt_steps=1000, summ_steps=100, metrics=[acc], listeners=listeners, from_scratch=True)
 
-output = network(*x)
-
-
-loss = nn.CrossEntropyLoss()(output.transpose(-2, -1), y)
