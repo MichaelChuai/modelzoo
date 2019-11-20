@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
 class MatchingNetwork(nn.Module):
     def __init__(self, embedding_network, context_embedding_network, num_classes):
         super(MatchingNetwork, self).__init__()
@@ -82,23 +81,15 @@ class Embedding(nn.Module):
 
 
 # 10-way
-# 2-shot
+# 1-shot
 
-torch.manual_seed(1337)
 
-ax = torch.rand(32, 20, 3, 28, 28, dtype=torch.float32) # support_x
-ay = torch.randint(10, (32, 20)) # support_y
-# ay_one_hot = F.one_hot(ay, 10)
 
-tx = torch.rand(32, 2, 3, 28, 28, dtype=torch.float32) # target_x
-ty = torch.randint(10, (32, 2)) # target_y
+# G = Embedding(1, 10)
+# context_embedding_network = MatchingNetwork.build_context_embedding_network(10, 64, 1)
 
-G = Embedding(3, 10)
-context_embedding_network = MatchingNetwork.build_context_embedding_network(10, 30, 3)
+# network = MatchingNetwork(G, context_embedding_network, 10)
 
-network = MatchingNetwork(G, context_embedding_network, 10)
+# output = network(tx, ax, ay)
 
-output = network(tx, ax, ay)
-
-loss = nn.CrossEntropyLoss()(output.transpose(-2, -1), ty)
-        
+# loss = nn.CrossEntropyLoss()(output.transpose(-2, -1), ty)
