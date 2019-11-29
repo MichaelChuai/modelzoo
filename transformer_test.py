@@ -50,7 +50,7 @@ scheduler = CustomSchedule(optimizer, d_model, warmup_steps=100)
 
 ckpt = dl.Checkpoint('results/pt2en_transformer', max_to_keep=10, save_best_only=True, saving_metric='test_acc', device=0)
 acc = dl.MetricAccuracy(name='acc', device=0)
-listeners = [dl.Listener('test', gntv, acc)]
+listeners = [dl.Listener('test', gntv, [acc])]
 
 def loss_func(predictions, labels):
     batch_size = predictions.size(0)
