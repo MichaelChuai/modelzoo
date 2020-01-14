@@ -47,7 +47,7 @@ class CustomSchedule(torch.optim.lr_scheduler._LRScheduler):
         lr = 1. / np.sqrt(self.d_model) * np.minimum(arg1, arg2)
         return [lr for _ in self.base_lrs]
 scheduler = CustomSchedule(optimizer, d_model, warmup_steps=100)
-
+scheduler = None
 ckpt = dl.Checkpoint('results/pt2en_transformer', max_to_keep=10, save_best_only=True, saving_metric='test_acc', device=0)
 acc = dl.MetricAccuracy(name='acc', device=0)
 listeners = [dl.Listener('test', gntv, [acc])]
