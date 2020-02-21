@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 
 
-class AdaptiveEmbedding()
 
 
 class PositionalEmbedding(nn.Module):
