@@ -175,7 +175,7 @@ class EnasModel:
                         bys = bys.cuda(self.device)
                 arch_seq = self.sampler()
                 by_ = self.builder(arch_seq, *bxs)
-                loss = loss_func()
+                loss = loss_func(by_, bys)
                 lr = optimizer.param_groups[0]['lr']
                 if self.builder_global_step == 0:
                     summ_writer.add_scalar('train/loss', loss, self.builder_global_step)
@@ -200,7 +200,7 @@ class EnasModel:
                             metric.reset()
                             metric.update(bys, by_)
                             summ_writer.add_scalar(
-                                f'train/{metric.name}', metric.result, self.global_step)
+                                f'train/{metric.name}', metric.result, self.builder_global_step)
                     summ_writer.flush()
             ckpt_idx = self.builder_global_step // ckpt_steps
             if train_sampler:
@@ -217,6 +217,10 @@ class EnasModel:
                         if self.sampler_global_step == 0:
                             sampler_summ_writer.add_scalar('train/loss', sampler_loss, self.sampler_global_step)
                             sampler_summ_writer.add_scalar('train/lr', lr, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/reward', reward, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/baseline', self.sampler.baseline, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/log_prob', self.sampler.sample_log_prob, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/entropy', self.sampler.sample_entropy, self.sampler_global_step)
                             sampler_summ_writer.flush()
                         sampler_optimizer.zero_grad()
                         sampler_loss.backward()
@@ -227,7 +231,13 @@ class EnasModel:
                         if self.sampler_global_step % sampler_summ_steps == 0:
                             sampler_summ_writer.add_scalar('train/loss', sampler_loss, self.sampler_global_step)
                             sampler_summ_writer.add_scalar('train/lr', lr, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/reward', reward, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/baseline', self.sampler.baseline, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/log_prob', self.sampler.sample_log_prob, self.sampler_global_step)
+                            sampler_summ_writer.add_scalar('train/entropy', self.sampler.sample_entropy, self.sampler_global_step)
                             sampler_summ_writer.flush()
+                    self.sampler_ckpt.save(self.sampler, self.sampler_global_step, given_index=num_sampler_training)
+                    self.sampler.eval()
             if self.builder_global_step >= steps_before_sampling:
                 metric_dict_all = None
                 if listeners:

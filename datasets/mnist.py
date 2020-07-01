@@ -5,10 +5,10 @@ import dlutil as dl
 root = '../../data/mnist'
 
 ds = np.load(f'{root}/mnist.npz')
-xtr = ds['x_train'][:-5000]
-ytr = ds['y_train'][:-5000]
-xtv = ds['x_train'][-5000:]
-ytv = ds['y_train'][-5000:]
+xtr = ds['x_train'][:-500]
+ytr = ds['y_train'][:-500]
+xtv = ds['x_train'][-500:]
+ytv = ds['y_train'][-500:]
 xte = ds['x_test']
 yte = ds['y_test']
 
@@ -20,6 +20,5 @@ dt = {
 }
 
 dl.write_classified_h5_from_arrays(f'{root}/mnist.h5', dt)
-# dl.write_h5_from_arrays(f'{root}/mnist_tr.h5', [xtr], [ytr])
-# dl.write_h5_from_arrays(f'{root}/mnist_te.h5', [xte], [yte])
+
 

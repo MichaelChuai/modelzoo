@@ -64,7 +64,7 @@ class ArchSampler(nn.Module):
                 self.probs.append(prob[0].detach().cpu().numpy())
                 self.arch_seq.append(layer_type_id.cpu().numpy().tolist())
             else:
-                self.probs.append(probs[0].detach().numpy())
+                self.probs.append(prob[0].detach().numpy())
                 self.arch_seq.append(layer_type_id.numpy().tolist())
         self.sample_log_prob = torch.sum(torch.cat(log_probs))
         self.sample_entropy = torch.sum(torch.cat(entropies))
