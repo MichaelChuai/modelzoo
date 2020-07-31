@@ -1,4 +1,6 @@
 import random
+import collections
+from .search_space import cell_seq_gen
 
 dim = 100
 noise_stdev = 0.01
@@ -13,12 +15,14 @@ class Model:
 
     @classmethod
     def sum_bits(cls, arch):
-        total = sum(map(int, bin(arch)[2:]))
+        total = 0
+        for l in arch:
+            total += sum(l)
         return total
 
     @classmethod
     def random_arch(cls):
-        return random.randint(0, 2 ** dim - 1)
+        return cell_seq_gen(11)
 
     @classmethod
     def train_and_eval(cls, arch):
@@ -35,7 +39,36 @@ class Model:
         return arch
 
 
-q = Model.random_arch()
-acc = Model.train_and_eval(q)
-q2 = Model.mutate_arch(q)
-acc2 = Model.train_and_eval(q2)
+
+cycles = 1000
+population_size = 100
+sample_size = 10
+
+population = collections.deque()
+history = []
+
+
+# Initialize the population
+while len(population) < population_size:
+    model = Model()
+    model.arch = Model.random_arch()
+    model.accuracy = Model.train_and_eval(model.arch)
+    population.append(model)
+    history.append(model)
+
+# Carry out evolution in cycles. Each cycle produces a model and removes another.
+
+while len(history) < cycles:
+    sample = []
+    while len(sample) < sample_size:
+        candidate = random.choice(list(population))
+        sample.append(candidate)
+    parent = max(sample, key=lambda i: i.accuracy)
+    print(parent.arch, parent.accuracy)
+    child = Model()
+    child.arch = Model.mutate_arch(parent.arch)
+    child.accuracy = Model.train_and_eval(child.arch)
+    population.append(child)
+    history.append(child)
+    population.popleft()
+
