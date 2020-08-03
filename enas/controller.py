@@ -113,7 +113,7 @@ class LayerCollection(nn.Module):
                 assert len(extend_layer_lst) == per_layer_types
                 self.layer_lst.append(nn.ModuleList(extend_layer_lst))
         self.layer_lst = nn.ModuleList(self.layer_lst)
-    
+     
 
     def get_layer(self, i, j):
         return self.layer_lst[i][j]
