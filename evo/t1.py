@@ -1,6 +1,6 @@
 import random
 import collections
-from .search_space import cell_seq_gen
+from evo.search_space import *
 
 dim = 100
 noise_stdev = 0.01
@@ -8,7 +8,7 @@ noise_stdev = 0.01
 class Model:
     def __init__(self):
         self.arch = None
-        self.accuracy = None
+        self.value = None
     
     def __str__(self):
         return f'{self.arch:b}'
@@ -16,13 +16,13 @@ class Model:
     @classmethod
     def sum_bits(cls, arch):
         total = 0
-        for l in arch:
-            total += sum(l)
+        
         return total
 
     @classmethod
     def random_arch(cls):
-        return cell_seq_gen(11)
+        nc = cell_seq_gen(11)
+        rc = cell_seq_gen(11)
 
     @classmethod
     def train_and_eval(cls, arch):
@@ -34,11 +34,10 @@ class Model:
 
     @classmethod
     def mutate_arch(cls, prev_arch):
-        position = random.randint(0, dim-1)
-        arch = prev_arch ^ (1 << position)
+        
         return arch
 
-
+# 15821561938
 
 cycles = 1000
 population_size = 100
