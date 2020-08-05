@@ -1,5 +1,4 @@
 import numpy as np
-import random
 from copy import deepcopy
 import networkx as nx
 import torch
@@ -19,6 +18,60 @@ Possible ops:
 10. 5x5 sconv
 11. 7x7 sconv
 '''
+
+def cell_gen(num_ops, num_round=5):
+    lst = [[0], [1]]
+    whole_set = set(range(2+num_round))
+    sampled_lst = []
+    for i in range(2, num_round+2):
+        nodes = np.random.choice(i, 2).tolist()
+        ops = np.random.randint(0, num_ops, 2).tolist()
+        sample = list(zip(nodes, ops))
+        sample = [list(tup) for tup in sample]
+        sampled_lst.extend(nodes)
+        lst.append(sample)
+    sampled_set = set(sampled_lst)
+    out_set = whole_set - sampled_set
+    out_lst = sorted(list(out_set))
+    lst.append(out_lst)
+    return lst
+
+def mutate_cell(normal_cell, reduction_cell, num_ops=None):
+    normal_cell = deepcopy(normal_cell)
+    reduction_cell = deepcopy(reduction_cell)
+    num_round = len(normal_cell) - 3
+    mut_type = np.random.randint(2)  # 0 for hidden state mutation, 1 for op mutation
+    mut_cell_type = np.random.randint(2) # 0 for normal cell, 1 for reduction cell
+    mut_round = np.random.randint(num_round)
+    mut_loc = np.random.randint(2)
+    mut_cell = [normal_cell, reduction_cell][mut_cell_type]
+    if mut_type == 0:
+        cur_node = mut_cell[2 + mut_round][mut_loc][0]
+        new_node = np.random.choice([i for i in range(2+mut_round) if i != cur_node])
+        mut_cell[2 + mut_round][mut_loc][0] = new_node
+        whole_set = set(range(2+num_round))
+        sampled_set = set()
+        for i in range(2, 2+num_round):
+            sampled_set.add(mut_cell[i][0][0])
+            sampled_set.add(mut_cell[i][1][0])
+        out_set = whole_set - sampled_set
+        out_lst = sorted(list(out_set))
+        mut_cell[-1] = out_lst
+    else:
+        cur_op = mut_cell[2 + mut_round][mut_loc][1]
+        new_op = np.random.choice([i for i in range(num_ops) if i != cur_op])
+        mut_cell[2 + mut_round][mut_loc][1] = new_op
+    return normal_cell, reduction_cell
+
+def cell_to_graph(cell):
+    num_round = len(cell) - 3
+    g = nx.DiGraph()
+    g.add_nodes_from(range(num_round+3))
+    for i in range(2, num_round+2):
+        g.add_edges_from([(cell[i][0][0], i), (cell[i][1][0], i)])
+    g.add_edges_from([(i, 2+num_round) for i in cell[-1]])
+    return g
+
 
 
 def ConvOp(in_channels, 
@@ -130,75 +183,155 @@ class SepConv77Op(nn.Module):
         return self.sepconv(x)
 
 
+class LayerCollection(nn.Module):
+    def __init__(self, out_channels, num_cells, num_rounds):
+        super(LayerCollection, self).__init__()
+        ops = [
+            IdentityOp,
+            Conv1331Op,
+            Conv1771Op,
+            DilConvOp,
+            AvgPoolOp,
+            MaxPoolOp,
+            Conv11Op,
+            Conv33Op,
+            SepConv33Op,
+            SepConv55Op,
+            SepConv77Op
+        ]
+        num_locs = 2
+        num_ops = len(ops)
+        cell_lst = []
+        for _ in range(num_cells):
+            round_lst = []
+            for _ in range(num_rounds):
+                loc_lst = []
+                for _ in range(num_locs):
+                    op_lst = []
+                    for l in range(num_ops):
+                        op_lst.append(ops[l](out_channels, out_channels))
+                    loc_lst.append(nn.ModuleList(op_lst))
+                round_lst.append(nn.ModuleList(loc_lst))
+            cell_lst.append(nn.ModuleList(round_lst))
+        self.cell_lst = nn.ModuleList(cell_lst)
+        cell_output_lst = []
+        for _ in range(num_cells):
+            multiple_lst = []
+            for i in range(1, 2+num_rounds):
+                multiple_lst.append(Conv11Op(i * out_channels, out_channels))
+            cell_output_lst.append(nn.ModuleList(multiple_lst))
+        self.cell_output_lst = nn.ModuleList(cell_output_lst)
+
+    def forward(self, x):
+        return x
 
 
+class CellBuilder(nn.Module):
+    def __init__(self, idx_cell, layer_col: LayerCollection):
+        super(CellBuilder, self).__init__()
+        self.layer_candidates = layer_col.cell_lst[idx_cell]
+        self.layer_output_candidates = layer_col.cell_output_lst[idx_cell]
 
-def cell_gen(num_ops, num_round=5):
-    lst = [[0], [1]]
-    whole_set = set(range(2+num_round))
-    sampled_lst = []
-    for i in range(2, num_round+2):
-        nodes = np.random.choice(i, 2).tolist()
-        ops = np.random.randint(0, num_ops, 2).tolist()
-        sample = sorted(zip(nodes, ops))
-        sample = [list(tup) for tup in sample]
-        sampled_lst.extend(nodes)
-        lst.append(sample)
-    sampled_set = set(sampled_lst)
-    out_set = whole_set - sampled_set
-    out_lst = sorted(list(out_set))
-    lst.append(out_lst)
-    return lst
+    def forward(self, cell_seq, x0, x1):
+        nodes = [x0, x1]
+        num_round = len(cell_seq) - 3
+        for i in range(num_round):
+            loc0, loc1 = cell_seq[2+i]
+            n0, o0 = loc0
+            inp0 = nodes[n0]
+            l0 = self.layer_candidates[i][0][o0]
+            n1, o1 = loc1
+            inp1 = nodes[n1]
+            l1 = self.layer_candidates[i][0][o1]
+            out = nn.ReLU()(l0(inp0) + l1(inp1))
+            nodes.append(out)
+        out_nodes = [nodes[i] for i in cell_seq[-1]]
+        out = torch.cat(out_nodes, dim=1)
+        out_l = self.layer_output_candidates[len(out_nodes)-1]
+        out = nn.ReLU()(out_l(out))
+        return out
+        
+class ArchBuilder(nn.Module):
+    def __init__(self, stem_module, num_classes, out_channels, normal_cell_num_lst, num_rounds):
+        super(ArchBuilder, self).__init__()
+        self.stem_module = stem_module # Output channels should be `out_channels`
+        num_cells = sum(normal_cell_num_lst) + len(normal_cell_num_lst) - 1
+        self.layer_col = LayerCollection(out_channels, num_cells, num_rounds)
+        assert len(normal_cell_num_lst) >= 2, 'Architecture must contain at least one reduction cell and two normal cells!'
+        cell_lst = []
+        idx_cell = -1
+        self.cell_state = {} # 0 for normal cell; 1 for reduction cell
+        for i in range(len(normal_cell_num_lst)):
+            n = normal_cell_num_lst[i]
+            for j in range(n):
+                idx_cell += 1
+                if i > 0 and j == 0:
+                    inp0_layer = nn.Sequential(
+                        ConvOp(out_channels, out_channels, kernel_size=[3, 3], stride=[2, 2], padding=[1, 1]),
+                        nn.ReLU()
+                    )
+                else:
+                    inp0_layer = IdentityOp(out_channels, out_channels)
+                inp1_layer = IdentityOp(out_channels, out_channels)
+                normal_cell = CellBuilder(idx_cell, self.layer_col)
+                self.cell_state[idx_cell] = 0
+                cell_lst.append(nn.ModuleList([inp0_layer, inp1_layer, normal_cell]))
+            if i != len(normal_cell_num_lst) - 1:
+                idx_cell += 1
+                inp0_layer = nn.Sequential(
+                        ConvOp(out_channels, out_channels, kernel_size=[3, 3], stride=[2, 2], padding=[1, 1]),
+                        nn.ReLU()
+                )
+                inp1_layer = nn.Sequential(
+                        ConvOp(out_channels, out_channels, kernel_size=[3, 3], stride=[2, 2], padding=[1, 1]),
+                        nn.ReLU()
+                )
+                reduction_cell = CellBuilder(idx_cell, self.layer_col)
+                self.cell_state[idx_cell] = 1
+                cell_lst.append(nn.ModuleList([inp0_layer, inp1_layer, reduction_cell]))
+        self.cell_lst = nn.ModuleList(cell_lst)
+        assert len(self.cell_lst) == num_cells, f'Fatal error: {len(self.cell_lst)} != {num_cells}'
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.final_layer = nn.Linear(out_channels, num_classes)
+    
+    def forward(self, normal_cell_seq, reduction_cell_seq, x):
+        x = self.stem_module(x)
+        cell_nodes = [x, x]
+        out = None
+        for i in range(len(self.cell_lst)):
+            inp0_layer, inp1_layer, cell = self.cell_lst[i]
+            m_x0 = inp0_layer(cell_nodes[i])
+            m_x1 = inp1_layer(cell_nodes[i+1])
+            if self.cell_state[i] == 0:
+                cell_seq = normal_cell_seq
+            elif self.cell_state[i] == 1:
+                cell_seq = reduction_cell_seq
+            else:
+                raise RuntimeError(f'Invalid cell state {self.cell_state[i]}')
+            out = cell(cell_seq, m_x0, m_x1)
+            cell_nodes.append(out)
+        out = self.avgpool(out)
+        out = nn.Flatten()(out)
+        out = self.final_layer(out)
+        return out
 
-def mutate_cell(normal_cell, reduction_cell, num_ops=None):
-    normal_cell = deepcopy(normal_cell)
-    reduction_cell = deepcopy(reduction_cell)
-    num_round = len(normal_cell) - 3
-    mut_type = np.random.randint(2)  # 0 for hidden state mutation, 1 for op mutation
-    mut_cell_type = np.random.randint(2) # 0 for normal cell, 1 for reduction cell
-    mut_round = np.random.randint(num_round)
-    mut_loc = np.random.randint(2)
-    mut_cell = [normal_cell, reduction_cell][mut_cell_type]
-    if mut_type == 0:
-        new_node = np.random.randint(2 + mut_round)
-        mut_cell[2 + mut_round][mut_loc][0] = new_node
-        mut_cell[2 + mut_round] = sorted(mut_cell[2 + mut_round])
-        whole_set = set(range(2+num_round))
-        sampled_set = set()
-        for i in range(2, 2+num_round):
-            sampled_set.add(mut_cell[i][0][0])
-            sampled_set.add(mut_cell[i][1][0])
-        out_set = whole_set - sampled_set
-        out_lst = sorted(list(out_set))
-        mut_cell[-1] = out_lst
-    else:
-        cur_op = mut_cell[2 + mut_round][mut_loc][1]
-        new_op = np.random.choice([i for i in range(num_ops) if i != cur_op])
-        mut_cell[2 + mut_round][mut_loc][1] = new_op
-    return normal_cell, reduction_cell
-
-def cell_to_graph(cell):
-    num_round = len(cell) - 3
-    g = nx.DiGraph()
-    g.add_nodes_from(range(num_round+3))
-    for i in range(2, num_round+2):
-        g.add_edges_from([(cell[i][0][0], i), (cell[i][1][0], i)])
-    g.add_edges_from([(i, 2+num_round) for i in cell[-1]])
-    return g
-
-
-
-
-
-
-# nc = cell_gen(11)
-# rc = cell_gen(11)
-# anc, arc = mutate_cell(nc, rc, 11)
-
+    
+# layer_col = LayerCollection(32, 10, 5)
+nc = cell_gen(11)
+rc = cell_gen(11)
+# c = CellBuilder(0, layer_col)
+# d = CellBuilder(1, layer_col)
+# e = CellBuilder(2, layer_col)
+x = torch.rand(10, 3, 16, 16)
+# t = c(nc, x0, x1)
 # print(nc)
-# print(anc)
-# print(rc)
-# print(arc)
+# print(t.shape)
+stem = nn.Sequential(
+    ConvOp(3, 32, kernel_size=1),
+    nn.ReLU()
+)
+ab = ArchBuilder(stem, 2, 32, [2, 2, 2], 5)
+t = ab(nc, rc, x)
 
 # gnc = cell_to_graph(nc)
 # ganc = cell_to_graph(anc)
