@@ -310,6 +310,7 @@ class ArchBuilder(nn.Module):
                 raise RuntimeError(f'Invalid cell state {self.cell_state[i]}')
             out = cell(cell_seq, m_x0, m_x1)
             cell_nodes.append(out)
+        self.cell_nodes = cell_nodes
         out = self.avgpool(out)
         out = nn.Flatten()(out)
         out = self.final_layer(out)
@@ -332,6 +333,9 @@ stem = nn.Sequential(
 )
 ab = ArchBuilder(stem, 2, 32, [2, 2, 2], 5)
 t = ab(nc, rc, x)
+
+anc, arc = mutate_cell(nc, rc, num_ops=11)
+t1 = ab(anc, rc, x)
 
 # gnc = cell_to_graph(nc)
 # ganc = cell_to_graph(anc)
