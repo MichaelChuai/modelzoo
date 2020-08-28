@@ -172,7 +172,7 @@ class SepConv55Op(nn.Module):
         self.sepconv = ConvOp(in_channels, out_channels, kernel_size=[5, 5], padding=[2, 2], groups=in_channels)
     
     def forward(self, x):
-        return self.sepconv(x)
+        return self.sepconv(x) 
 
 class SepConv77Op(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -316,26 +316,20 @@ class ArchBuilder(nn.Module):
         out = self.final_layer(out)
         return out
 
-    
-# layer_col = LayerCollection(32, 10, 5)
+
 nc = cell_gen(11)
 rc = cell_gen(11)
-# c = CellBuilder(0, layer_col)
-# d = CellBuilder(1, layer_col)
-# e = CellBuilder(2, layer_col)
-x = torch.rand(10, 3, 16, 16)
-# t = c(nc, x0, x1)
-# print(nc)
-# print(t.shape)
+x = torch.rand(20, 3, 16, 16)
+y = torch.randint(5, (20,))
 stem = nn.Sequential(
     ConvOp(3, 32, kernel_size=1),
     nn.ReLU()
 )
-ab = ArchBuilder(stem, 2, 32, [2, 2, 2], 5)
-t = ab(nc, rc, x)
+ab = ArchBuilder(stem, 5, 32, [2, 2, 2], 5).cuda(0)
+t = ab(nc, rc, x.cuda(0))
 
-anc, arc = mutate_cell(nc, rc, num_ops=11)
-t1 = ab(anc, rc, x)
+# anc, arc = mutate_cell(nc, rc, num_ops=11)
+# t1 = ab(anc, arc, x)
 
 # gnc = cell_to_graph(nc)
 # ganc = cell_to_graph(anc)
