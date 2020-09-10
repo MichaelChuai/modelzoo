@@ -1,7 +1,7 @@
 import numpy as np
 from evo.search_space import *
 from collections import namedtuple, deque
-
+import dlutil
 
 Arch = namedtuple('Arch', ['normal_cell', 'reduction_cell'])
 

@@ -317,16 +317,20 @@ class ArchBuilder(nn.Module):
         return out
 
 
-nc = cell_gen(11)
-rc = cell_gen(11)
-x = torch.rand(20, 3, 16, 16)
-y = torch.randint(5, (20,))
-stem = nn.Sequential(
-    ConvOp(3, 32, kernel_size=1),
-    nn.ReLU()
-)
-ab = ArchBuilder(stem, 5, 32, [2, 2, 2], 5).cuda(0)
-t = ab(nc, rc, x.cuda(0))
+
+
+
+
+# nc = cell_gen(11)
+# rc = cell_gen(11)
+# x = torch.rand(20, 3, 16, 16)
+# y = torch.randint(5, (20,))
+# stem = nn.Sequential(
+#     ConvOp(3, 32, kernel_size=1),
+#     nn.ReLU()
+# )
+# ab = ArchBuilder(stem, 5, 32, [2, 2, 2], 5).cuda(0)
+# t = ab(nc, rc, x.cuda(0))
 
 # anc, arc = mutate_cell(nc, rc, num_ops=11)
 # t1 = ab(anc, arc, x)
