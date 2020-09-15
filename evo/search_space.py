@@ -3,6 +3,7 @@ from copy import deepcopy
 import networkx as nx
 import torch
 import torch.nn as nn
+from collections import namedtuple
 
 '''
 Possible ops:
@@ -19,11 +20,11 @@ Possible ops:
 11. 7x7 sconv
 '''
 
-def cell_gen(num_ops, num_round=5):
+def cell_gen(num_ops, num_rounds=5):
     lst = [[0], [1]]
-    whole_set = set(range(2+num_round))
+    whole_set = set(range(2+num_rounds))
     sampled_lst = []
-    for i in range(2, num_round+2):
+    for i in range(2, num_rounds+2):
         nodes = np.random.choice(i, 2).tolist()
         ops = np.random.randint(0, num_ops, 2).tolist()
         sample = list(zip(nodes, ops))
@@ -39,19 +40,19 @@ def cell_gen(num_ops, num_round=5):
 def mutate_cell(normal_cell, reduction_cell, num_ops=None):
     normal_cell = deepcopy(normal_cell)
     reduction_cell = deepcopy(reduction_cell)
-    num_round = len(normal_cell) - 3
+    num_rounds = len(normal_cell) - 3
     mut_type = np.random.randint(2)  # 0 for hidden state mutation, 1 for op mutation
     mut_cell_type = np.random.randint(2) # 0 for normal cell, 1 for reduction cell
-    mut_round = np.random.randint(num_round)
+    mut_round = np.random.randint(num_rounds)
     mut_loc = np.random.randint(2)
     mut_cell = [normal_cell, reduction_cell][mut_cell_type]
     if mut_type == 0:
         cur_node = mut_cell[2 + mut_round][mut_loc][0]
         new_node = np.random.choice([i for i in range(2+mut_round) if i != cur_node])
         mut_cell[2 + mut_round][mut_loc][0] = new_node
-        whole_set = set(range(2+num_round))
+        whole_set = set(range(2+num_rounds))
         sampled_set = set()
-        for i in range(2, 2+num_round):
+        for i in range(2, 2+num_rounds):
             sampled_set.add(mut_cell[i][0][0])
             sampled_set.add(mut_cell[i][1][0])
         out_set = whole_set - sampled_set
@@ -64,12 +65,12 @@ def mutate_cell(normal_cell, reduction_cell, num_ops=None):
     return normal_cell, reduction_cell
 
 def cell_to_graph(cell):
-    num_round = len(cell) - 3
+    num_rounds = len(cell) - 3
     g = nx.DiGraph()
-    g.add_nodes_from(range(num_round+3))
-    for i in range(2, num_round+2):
+    g.add_nodes_from(range(num_rounds+3))
+    for i in range(2, num_rounds+2):
         g.add_edges_from([(cell[i][0][0], i), (cell[i][1][0], i)])
-    g.add_edges_from([(i, 2+num_round) for i in cell[-1]])
+    g.add_edges_from([(i, 2+num_rounds) for i in cell[-1]])
     return g
 
 
@@ -234,8 +235,8 @@ class CellBuilder(nn.Module):
 
     def forward(self, cell_seq, x0, x1):
         nodes = [x0, x1]
-        num_round = len(cell_seq) - 3
-        for i in range(num_round):
+        num_rounds = len(cell_seq) - 3
+        for i in range(num_rounds):
             loc0, loc1 = cell_seq[2+i]
             n0, o0 = loc0
             inp0 = nodes[n0]
@@ -250,7 +251,9 @@ class CellBuilder(nn.Module):
         out_l = self.layer_output_candidates[len(out_nodes)-1]
         out = nn.ReLU()(out_l(out))
         return out
-        
+
+ArchSeq = namedtuple('ArchSeq', ['normal_cell', 'reduction_cell'])
+
 class ArchBuilder(nn.Module):
     def __init__(self, stem_module, num_classes, out_channels, normal_cell_num_lst, num_rounds):
         super(ArchBuilder, self).__init__()
@@ -294,7 +297,7 @@ class ArchBuilder(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.final_layer = nn.Linear(out_channels, num_classes)
     
-    def forward(self, normal_cell_seq, reduction_cell_seq, x):
+    def forward(self, archseq, x):
         x = self.stem_module(x)
         cell_nodes = [x, x]
         out = None
@@ -303,9 +306,9 @@ class ArchBuilder(nn.Module):
             m_x0 = inp0_layer(cell_nodes[i])
             m_x1 = inp1_layer(cell_nodes[i+1])
             if self.cell_state[i] == 0:
-                cell_seq = normal_cell_seq
+                cell_seq = archseq.normal_cell
             elif self.cell_state[i] == 1:
-                cell_seq = reduction_cell_seq
+                cell_seq = archseq.reduction_cell
             else:
                 raise RuntimeError(f'Invalid cell state {self.cell_state[i]}')
             out = cell(cell_seq, m_x0, m_x1)
