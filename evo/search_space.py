@@ -252,7 +252,24 @@ class CellBuilder(nn.Module):
         out = nn.ReLU()(out_l(out))
         return out
 
-ArchSeq = namedtuple('ArchSeq', ['normal_cell', 'reduction_cell'])
+
+class ArchSeqGenerator:
+    def __init__(self, num_ops, num_rounds):
+        self.num_ops = num_ops
+        self.num_rounds = num_rounds
+    
+    def gen_archseq(self):
+        normal_cell = cell_gen(self.num_ops, self.num_rounds)
+        reduction_cell = cell_gen(self.num_ops, self.num_rounds)
+        return {'normal_cell': normal_cell, 'reduction_cell': reduction_cell}
+    
+    def mutate_archseq(self, prev_archseq):
+        normal_cell = prev_archseq['normal_cell']
+        reduction_cell = prev_archseq['reduction_cell']
+        m_normal_cell, m_reduction_cell = mutate_cell(
+            normal_cell, reduction_cell, self.num_ops)
+        return {'normal_cell': m_normal_cell, 'reduction_cell': m_reduction_cell}
+
 
 class ArchBuilder(nn.Module):
     def __init__(self, stem_module, num_classes, out_channels, normal_cell_num_lst, num_rounds):
@@ -297,7 +314,7 @@ class ArchBuilder(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.final_layer = nn.Linear(out_channels, num_classes)
     
-    def forward(self, archseq, x):
+    def forward(self, archseq_dict, x):
         x = self.stem_module(x)
         cell_nodes = [x, x]
         out = None
@@ -306,9 +323,9 @@ class ArchBuilder(nn.Module):
             m_x0 = inp0_layer(cell_nodes[i])
             m_x1 = inp1_layer(cell_nodes[i+1])
             if self.cell_state[i] == 0:
-                cell_seq = archseq.normal_cell
+                cell_seq = archseq_dict['normal_cell']
             elif self.cell_state[i] == 1:
-                cell_seq = archseq.reduction_cell
+                cell_seq = archseq_dict['reduction_cell']
             else:
                 raise RuntimeError(f'Invalid cell state {self.cell_state[i]}')
             out = cell(cell_seq, m_x0, m_x1)
