@@ -349,11 +349,13 @@ class ArchBuilder(nn.Module):
 #     ConvOp(3, 32, kernel_size=1),
 #     nn.ReLU()
 # )
-# ab = ArchBuilder(stem, 5, 32, [2, 2, 2], 5).cuda(0)
-# t = ab(nc, rc, x.cuda(0))
+# ab = ArchBuilder(stem, 5, 32, [2, 2, 2], 5)
+# dt = {'normal_cell': nc, 'reduction_cell': rc}
+# t = ab(dt, x)
 
 # anc, arc = mutate_cell(nc, rc, num_ops=11)
-# t1 = ab(anc, arc, x)
+# dt = {'normal_cell': anc, 'reduction_cell': arc}
+# t1 = ab(dt, x)
 
 # gnc = cell_to_graph(nc)
 # ganc = cell_to_graph(anc)
@@ -382,7 +384,7 @@ class ArchBuilder(nn.Module):
 # g = garc
 # pos = nx.circular_layout(g)
 # nx.draw(g, pos, with_labels=True, **options)
-# plt.show()
+# plt.savefig('../temp/i1.png')
 
 
 
