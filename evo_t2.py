@@ -18,27 +18,22 @@ stem = nn.Sequential(
     ConvOp(3, 64, kernel_size=1),
     nn.ReLU())
 arch = ArchBuilder(stem, 10, 64, [2,2,2], num_rounds=num_rounds).cuda(0)
-
+optimizer = torch.optim.Adam(arch.parameters())
+loss_func = nn.CrossEntropyLoss()
 ckpt = dl.Checkpoint('temp/evo/e1', device=0)
 acc = dl.MetricAccuracy(device=0, name='acc')
-batch_size = 32
-ds = dl.DataReader('/data/testdata/cifar10/cifar10.h5', transform_func=input_trans)
 
+batch_size = 32
+ds = dl.DataReader('/data/testdata/cifar10/cifar10_test.h5', transform_func=input_trans)
+
+gntr = ds.common_cls_reader(batch_size, selected_classes=['tr'], shuffle=True)
 gnte = ds.common_cls_reader(batch_size * 3, selected_classes=['te'], shuffle=False)
-ArchSeqGenerator
+
 emodel = EvoModel(arch, ckpt, num_ops, num_rounds, device=0)
 emodel.load_latest_checkpoint()
+emodel.setup_population(5)
 
-ac_dict = emodel.archseq_gen.gen_archseq()
-print(ac_dict)
-# emodel.evaluate(ac_dict, gnte, [acc])
+a = emodel.evolve(2, 3, 3, gnte, gnte, loss_func, optimizer, num_epochs=3, metrics=[acc])
 
-emodel.setup_population(200)
-ind_batch_size = 5
-ind_sampler = dl.InfiniteRandomSampler(np.arange(len(emodel.population)))
-ind_loader = Data.DataLoader(np.arange(len(emodel.population)), sampler=ind_sampler, batch_size=ind_batch_size)
-ind_iter = iter(ind_loader)
-inds = next(ind_iter).numpy()
-candidates = [emodel.population[i]['arch'] for i in inds]
 
 
