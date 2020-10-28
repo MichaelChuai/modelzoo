@@ -6,7 +6,6 @@ from evo.evolution import *
 import cv2
 
 
-
 def input_trans(bxs, bys):
     bx, = bxs
     by, = bys
